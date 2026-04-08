@@ -1,3 +1,9 @@
+import { analyzeDDS } from "./ddsEngine.js";
+import { analyzeThresholdLadder } from "./thresholdLadderEngine.js";
+import { analyzeTimeDecay } from "./timeDecayEngine.js";
+import { analyzeCrossMarketArb } from "./crossMarketArbEngine.js";
+import { analyzeEventDependency } from "./eventDependencyEngine.js";
+import { analyzeLiquidityVacuum } from "./liquidityVacuumEngine.js";
 // ============================================================
 //  POLYMARKET STRUCTURAL SCANNER — STRICT VERSION
 //  Save as: scanner.js
@@ -281,7 +287,30 @@ function stage2(markets, title) {
 // ============================================================
 
 function stage3(structure) {
-  const { type, rows } = structure;
+  const { type, rows, markets } = structure;
+
+  // Improved: Only apply time decay engine to cumulative 'by [date]' ladders, not mutually exclusive timing buckets
+  // Heuristic: If all questions contain 'by' + date, treat as cumulative time decay market
+  const byDateRegex = /by\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{4})/i;
+  const allByDate = Array.isArray(rows) && rows.length > 1 && rows.every(r => byDateRegex.test(r.question));
+  if (allByDate) {
+    const timeDecayResult = analyzeTimeDecay(markets[0]);
+    if (timeDecayResult.signals && timeDecayResult.signals.length > 0) {
+      return {
+        distortion: true,
+        veto: false,
+        rows,
+        timeDecay: timeDecayResult.signals[0],
+        reason: timeDecayResult.signals[0].message || "Time decay mispricing detected",
+      };
+    }
+    return {
+      distortion: false,
+      veto: false,
+      rows,
+      reason: "No time decay mispricing detected",
+    };
+  }
 
   if (type === "BINARY") {
     return {
@@ -302,11 +331,23 @@ function stage3(structure) {
   }
 
   if (type === "THRESHOLD_LADDER") {
+    // Use the new threshold ladder engine
+    const ladderResult = analyzeThresholdLadder(markets[0]);
+    // If any signals found, mark as distortion
+    if (ladderResult.signals && ladderResult.signals.length > 0) {
+      return {
+        distortion: true,
+        veto: false,
+        rows,
+        kink: ladderResult.signals[0],
+        reason: ladderResult.signals[0].message || "Threshold ladder distortion detected",
+      };
+    }
     return {
       distortion: false,
       veto: false,
       rows,
-      reason: "DDS skipped — threshold ladders are cumulative, not exact buckets",
+      reason: "No threshold ladder distortion detected",
     };
   }
 
@@ -319,69 +360,8 @@ function stage3(structure) {
     };
   }
 
-  if (rows.length < 3) {
-    return {
-      distortion: false,
-      veto: false,
-      rows,
-      reason: `Only ${rows.length} bracket(s) — need 3+ for DDS`,
-    };
-  }
-
-  const yesVals = rows.map((r) => r.yes);
-  const maxVal = Math.max(...yesVals);
-  const maxIdx = yesVals.indexOf(maxVal);
-
-  const neighbors = [];
-  if (maxIdx > 0) neighbors.push(yesVals[maxIdx - 1]);
-  if (maxIdx < yesVals.length - 1) neighbors.push(yesVals[maxIdx + 1]);
-
-  const avgNeighbor =
-    neighbors.length > 0
-      ? neighbors.reduce((a, b) => a + b, 0) / neighbors.length
-      : 0;
-
-  if (maxVal < 0.35) {
-    return {
-      distortion: false,
-      veto: false,
-      rows,
-      reason: `Peak too low for robust DDS (${pct(maxVal)} < 35%)`,
-    };
-  }
-
-  if (avgNeighbor <= 0) {
-    return {
-      distortion: false,
-      veto: false,
-      rows,
-      reason: "Neighbor average invalid for DDS",
-    };
-  }
-
-  const dds = maxVal / avgNeighbor;
-
-  if (dds >= 2.5) {
-    return {
-      distortion: true,
-      veto: false,
-      type: "DDS spike",
-      dds,
-      spike: rows[maxIdx],
-      rows,
-      reason:
-        `DDS spike detected — "${rows[maxIdx].question}" at ${pct(maxVal)} ` +
-        `vs avg neighbors ${pct(avgNeighbor)} (${dds.toFixed(2)}x)`,
-    };
-  }
-
-  return {
-    distortion: false,
-    veto: false,
-    dds,
-    rows,
-    reason: `No structural distortion — DDS ${dds.toFixed(2)} below 2.50`,
-  };
+  // Use the new DDS engine
+  return analyzeDDS(structure);
 }
 
 // ============================================================
@@ -724,6 +704,59 @@ async function main() {
   console.log(line());
   console.log("");
   avoids.forEach(printResult);
+
+
+
+  // Cross-market arbitrage detection (post-processing, does not override other engines)
+  const arbSignals = analyzeCrossMarketArb(events);
+  if (arbSignals.length > 0) {
+    console.log("\x1b[35mCROSS-MARKET ARBITRAGE SIGNALS\x1b[0m");
+    console.log(line());
+    for (const sig of arbSignals) {
+      console.log(`  ${sig.message}`);
+      console.log(`    Market A: ${sig.marketA.question} (${(sig.marketA.price * 100).toFixed(1)}%)`);
+      console.log(`    Market B: ${sig.marketB.question} (${(sig.marketB.price * 100).toFixed(1)}%)`);
+      console.log("");
+    }
+  } else {
+    console.log("\x1b[90mNo cross-market arbitrage signals found.\x1b[0m\n");
+  }
+
+  // Event dependency distortion detection (post-processing, does not override other engines)
+  const depSignals = analyzeEventDependency(events);
+  if (depSignals.length > 0) {
+    console.log("\x1b[36mEVENT DEPENDENCY DISTORTION SIGNALS\x1b[0m");
+    console.log(line());
+    for (const sig of depSignals) {
+      console.log(`  ${sig.message}`);
+      console.log(`    Trigger:   ${sig.marketA} (${(sig.probA * 100).toFixed(1)}%) [${sig.eventA}]`);
+      console.log(`    Dependent: ${sig.marketB} (${(sig.probB * 100).toFixed(1)}%) [${sig.eventB}]`);
+      console.log("");
+    }
+  } else {
+    console.log("\x1b[90mNo event dependency distortion signals found.\x1b[0m\n");
+  }
+
+  // Liquidity vacuum distortion detection (post-processing, does not override other engines)
+  const liquiditySignals = analyzeLiquidityVacuum(events);
+  if (liquiditySignals.length > 0) {
+    console.log("\x1b[34mLIQUIDITY VACUUM DISTORTION SIGNALS\x1b[0m");
+    console.log(line());
+    for (const sig of liquiditySignals) {
+      console.log(`  Market: ${sig.marketTitle}`);
+      console.log(`    Outcome: ${sig.outcome}`);
+      if (sig.priceChangeAbs !== undefined) {
+        console.log(`    Price: ${(sig.price * 100).toFixed(1)}% | Δ ${(sig.priceChangeAbs * 100).toFixed(1)}% | Vol: $${sig.volume}`);
+      }
+      if (sig.bestBid !== undefined && sig.bestAsk !== undefined) {
+        console.log(`    Orderbook gap: ${(sig.bestBid * 100).toFixed(1)}% → ${(sig.bestAsk * 100).toFixed(1)}%`);
+      }
+      console.log(`    Reason: ${sig.reason}`);
+      console.log("");
+    }
+  } else {
+    console.log("\x1b[90mNo liquidity vacuum distortion signals found.\x1b[0m\n");
+  }
 
   console.log(line("═"));
   console.log(
