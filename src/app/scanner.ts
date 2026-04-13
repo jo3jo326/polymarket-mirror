@@ -108,7 +108,16 @@ function stage1(markets: any[]): any {
 	if (!first) {
 		return { pass: false, reason: 'No markets found in event' };
 	}
-	const activeMarkets = markets.filter((m) => m.active === true && m.closed === false);
+	// Support Manifold: treat as active if isResolved === false and (closeTime is undefined or in the future)
+	const now = Date.now();
+	const activeMarkets = markets.filter((m) => {
+		// Manifold logic
+		if (typeof m.isResolved === 'boolean') {
+			return m.isResolved === false && (typeof m.closeTime !== 'number' || m.closeTime > now);
+		}
+		// Polymarket/other logic
+		return m.active === true && m.closed === false;
+	});
 	if (activeMarkets.length === 0) {
 		return { pass: false, reason: 'Market is not active / already closed' };
 	}
@@ -520,22 +529,57 @@ async function fetchManifoldEvents(): Promise<any[]> {
 	const data = await res.json();
 	if (!Array.isArray(data)) return [];
 
-	// Group markets by groupId if present, else by normalized question stem
-	const eventsMap: Record<string, any> = {};
-	for (const m of data) {
-		// Prefer groupId, else use normalized question stem
-		const groupId = m.groupId || (m.question ? m.question.replace(/\s+/g, ' ').toLowerCase().replace(/[^a-z0-9 ]/g, '').slice(0, 48) : 'ungrouped');
-		if (!eventsMap[groupId]) {
-			eventsMap[groupId] = {
-				id: groupId,
-				title: m.groupName || m.question || 'Untitled',
-				markets: [],
-				tags: m.tags || [],
-			};
+
+		// Filter for only active/open markets: not resolved and (no closeTime or closeTime in the future)
+		const now = Date.now();
+		const openMarkets = data.filter((m) =>
+			m.isResolved === false &&
+			(typeof m.closeTime !== 'number' || m.closeTime > now)
+		);
+
+		// Normalize outcomePrices for engine compatibility
+		for (const m of openMarkets) {
+			// Attach endDate for engine compatibility (resolution date)
+			if (typeof m.closeTime === 'number') {
+				m.endDate = m.closeTime;
+			}
+			// Binary market
+			let prob = undefined;
+			if (typeof m.probability === 'number') {
+				prob = m.probability;
+			} else if (typeof m.probabilityInt === 'number') {
+				prob = m.probabilityInt / 1000;
+			}
+			if (typeof prob === 'number') {
+				m.outcomePrices = JSON.stringify([prob, 1 - prob]);
+			} else if (Array.isArray(m.answers) && m.answers.length > 0) {
+				// Multiple-choice market
+				const prices = m.answers.map((a: any) => {
+					if (typeof a.probability === 'number') return a.probability;
+					if (typeof a.probabilityInt === 'number') return a.probabilityInt / 1000;
+					return 0;
+				});
+				m.outcomePrices = JSON.stringify(prices);
+			} else {
+				m.outcomePrices = JSON.stringify([]);
+			}
 		}
-		eventsMap[groupId].markets.push(m);
-	}
-	return Object.values(eventsMap);
+
+		// Group open markets by groupId if present, else by normalized question stem
+		const eventsMap: Record<string, any> = {};
+		for (const m of openMarkets) {
+				const groupId = m.groupId || (m.question ? m.question.replace(/\s+/g, ' ').toLowerCase().replace(/[^a-z0-9 ]/g, '').slice(0, 48) : 'ungrouped');
+				if (!eventsMap[groupId]) {
+						eventsMap[groupId] = {
+								id: groupId,
+								title: m.groupName || m.question || 'Untitled',
+								markets: [],
+								tags: m.tags || [],
+						};
+				}
+				eventsMap[groupId].markets.push(m);
+		}
+		return Object.values(eventsMap);
 }
 async function fetchStocksEvents(): Promise<any[]> {
 	// TODO: Implement Stocks API fetch
@@ -750,9 +794,7 @@ function inferTagsFromTitle(title: string): string[] {
 				if (sig.priceChangeAbs !== undefined) {
 					console.log(`    Price: ${(sig.price * 100).toFixed(1)}% | Δ ${(sig.priceChangeAbs * 100).toFixed(1)}% | Vol: $${sig.volume}`);
 				}
-				if (sig.bestBid !== undefined && sig.bestAsk !== undefined) {
-					console.log(`    Orderbook gap: ${(sig.bestBid * 100).toFixed(1)}% → ${(sig.bestAsk * 100).toFixed(1)}%`);
-				}
+				   // Removed orderbook gap debug output
 				console.log(`    Reason: ${sig.reason}`);
 				console.log('');
 			}

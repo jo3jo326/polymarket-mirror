@@ -25,9 +25,7 @@ export async function fetchOrderbooksForMarkets(markets: any[], concurrency = 5)
         if (ob) orderbookMap[m.id] = ob;
       } catch {}
       completed++;
-      if (completed % 10 === 0 || completed === total) {
-        console.log(`[Orderbook fetch] ${completed}/${total} complete`);
-      }
+      // Removed orderbook fetch progress debug output
     }
   }
 
