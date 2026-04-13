@@ -1,22 +1,22 @@
 // Test sync: harmless comment for dual-remote push verification
-import type { CalendarEvent } from '../algorithms/anticipationAlgorithm.ts';
-import { analyzeAnticipationOpportunities } from '../algorithms/anticipationAlgorithm.ts';
-import type { EventGroup } from '../algorithms/anticipationAlgorithm.ts';
-import { buildUnifiedEventCalendar } from '../calendar/eventCalendarEngine.ts';
-import type { RawCalendarEvent } from '../calendar/eventCalendarEngine.ts';
+import type { CalendarEvent } from '../algorithms/anticipationAlgorithm';
+import { analyzeAnticipationOpportunities } from '../algorithms/anticipationAlgorithm';
+import type { EventGroup } from '../algorithms/anticipationAlgorithm';
+import { buildUnifiedEventCalendar } from '../calendar/eventCalendarEngine';
+import type { RawCalendarEvent } from '../calendar/eventCalendarEngine';
 // Polymarket Structural Scanner — TypeScript Refactor
-import { analyzeDDS } from '../algorithms/ddsEngine.ts';
-import { analyzeThresholdLadder } from '../algorithms/thresholdLadderEngine.ts';
-import { analyzeTimeDecay } from '../algorithms/timeDecayEngine.ts';
-import { analyzeCrossMarketArb } from '../algorithms/crossMarketArbEngine.ts';
-import { analyzeEventDependency } from '../algorithms/eventDependencyEngine.ts';
-import { analyzeLiquidityVacuum } from '../algorithms/liquidityVacuumEngine.ts';
-import { analyzeVolatilityCompression } from '../algorithms/volatilityCompressionEngine.ts';
-import { analyzeSentimentImbalance } from '../algorithms/sentimentImbalanceEngine.ts';
-import { computeConfidenceScore, scoreSignals } from '../algorithms/confidenceScoringEngine.ts';
-import { fetchOrderbooksForMarkets } from '../connectors/polymarket/fetchOrderbooks.ts';
-import { classifyMarketStructure, MarketStructureType } from '../classifiers/marketStructureClassifier.ts';
-import { saveMarketSnapshot } from '../snapshot/snapshotEngine.ts';
+import { analyzeDDS } from '../algorithms/ddsEngine';
+import { analyzeThresholdLadder } from '../algorithms/thresholdLadderEngine';
+import { analyzeTimeDecay } from '../algorithms/timeDecayEngine';
+import { analyzeCrossMarketArb } from '../algorithms/crossMarketArbEngine';
+import { analyzeEventDependency } from '../algorithms/eventDependencyEngine';
+import { analyzeLiquidityVacuum } from '../algorithms/liquidityVacuumEngine';
+import { analyzeVolatilityCompression } from '../algorithms/volatilityCompressionEngine';
+import { analyzeSentimentImbalance } from '../algorithms/sentimentImbalanceEngine';
+import { computeConfidenceScore, scoreSignals } from '../algorithms/confidenceScoringEngine';
+import { fetchOrderbooksForMarkets } from '../connectors/polymarket/fetchOrderbooks';
+import { classifyMarketStructure, MarketStructureType } from '../classifiers/marketStructureClassifier';
+import { saveMarketSnapshot } from '../snapshot/snapshotEngine';
 
 // Minimal HTTP server for Render Web Service
 import http from 'http';
@@ -29,10 +29,10 @@ http.createServer((req, res) => {
 		console.log(`HTTP server listening on port ${PORT}`);
 	}
 });
-import { POLYMARKET_API, KALSHI_API, MANIFOLD_API, STOCKS_API, CURRENCIES_API, BONDS_API, ORDERBOOK_THROTTLE, EVENT_LIMIT, DEBUG } from '../env.ts';
+import { POLYMARKET_API, KALSHI_API, MANIFOLD_API, STOCKS_API, CURRENCIES_API, BONDS_API, ORDERBOOK_THROTTLE, EVENT_LIMIT, DEBUG } from '../env';
 import fetch from 'node-fetch';
-import { fetchKalshiMarkets } from '../exchange/kalshi.ts';
-import { fetchEvents as fetchKalshiEvents } from '../connectors/kalshi/fetchEvents.ts';
+import { fetchKalshiMarkets } from '../exchange/kalshi';
+import { fetchEvents as fetchKalshiEvents } from '../connectors/kalshi/fetchEvents';
 
 // =====================
 // Argument Parsing

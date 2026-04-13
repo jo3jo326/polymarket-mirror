@@ -2,7 +2,7 @@
 // This module fetches markets and events from Kalshi's public API
 
 import fetch from 'node-fetch';
-import { loadPrivateKeyFromFile, getKalshiAuthHeaders } from './kalshiAuth.ts';
+import { loadPrivateKeyFromFile, getKalshiAuthHeaders } from './kalshiAuth';
 
 export interface KalshiMarket {
   id: string;

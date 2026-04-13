@@ -1,7 +1,7 @@
 // Fetch Kalshi events from public API, matching Polymarket pattern
 
 import fetch from 'node-fetch';
-import { normalizeKalshi } from '../../normalizers/normalizeKalshi.ts';
+import { normalizeKalshi } from '../../normalizers/normalizeKalshi';
 
 export async function fetchEvents() {
   const url = 'https://trading-api.kalshi.com/trade-api/v2/markets/list?status=active';

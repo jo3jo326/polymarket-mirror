@@ -1,5 +1,5 @@
 // Test script for Anticipation Algorithm
-import { analyzeAnticipationOpportunities } from './anticipationAlgorithm.ts';
+import { analyzeAnticipationOpportunities } from './anticipationAlgorithm';
 
 // Example normalized events data (mock)
 const events = [
