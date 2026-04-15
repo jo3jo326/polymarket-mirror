@@ -19,6 +19,7 @@ import { computeConfidenceScore, scoreSignals } from '../algorithms/confidenceSc
 import { fetchOrderbooksForMarkets } from '../connectors/polymarket/fetchOrderbooks';
 import { classifyMarketStructure, MarketStructureType } from '../classifiers/marketStructureClassifier';
 import { saveMarketSnapshot } from '../snapshot/snapshotEngine';
+import { alertRouter } from '../shared/alertRouter';
 
 // Minimal HTTP server for Render Web Service
 import http from 'http';
@@ -863,6 +864,28 @@ function inferTagsFromTitle(title: string): string[] {
 	console.log('');
 
 	// Send SMS with trade count (Twilio integration test disabled)
+	// Send email alerts for trades
+	for (const trade of trades) {
+		await alertRouter({
+			type: 'TRADE',
+			market: trade.title || trade.id || 'Unknown',
+			exchange,
+			details: JSON.stringify(trade, null, 2),
+			confidence: trade.confidenceScore,
+			detectedAt: new Date().toISOString(),
+		});
+	}
+	// Send email alerts for watchlist
+	for (const watch of watchlist) {
+		await alertRouter({
+			type: 'WATCHLIST',
+			market: watch.title || watch.id || 'Unknown',
+			exchange,
+			details: JSON.stringify(watch, null, 2),
+			confidence: watch.confidenceScore,
+			detectedAt: new Date().toISOString(),
+		});
+	}
 }
 
 main().catch((err) => {
