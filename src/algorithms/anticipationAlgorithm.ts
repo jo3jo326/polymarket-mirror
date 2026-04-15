@@ -222,7 +222,7 @@ function isEventRelevant(
   ]
 
   for (const tag of calendarEvent.tags) {
-    if (marketTags.some((t) => t.includes(tag))) {
+    if (marketTags.some((t) => typeof t === 'string' && t.includes(tag))) {
       return true
     }
   }

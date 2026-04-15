@@ -1,3 +1,5 @@
+import 'dotenv/config';
+// import { sendSms } from '../shared/sendSms';
 // Test sync: harmless comment for dual-remote push verification
 import type { CalendarEvent } from '../algorithms/anticipationAlgorithm';
 import { analyzeAnticipationOpportunities } from '../algorithms/anticipationAlgorithm';
@@ -286,10 +288,6 @@ function stage4(structure: any): any {
 			candidate: false,
 			watchlist: true,
 			question: sweetSpot.question,
-			yes: sweetSpot.yes,
-			reason:
-				`Watchlist only — "${sweetSpot.question}" at ${pct(sweetSpot.yes)} ` +
-				`is in 30–60% zone but lacks confirmed structural edge`,
 		};
 	}
 	return {
@@ -299,304 +297,304 @@ function stage4(structure: any): any {
 	};
 }
 function stage5(s3Result: any): any {
-	if (!s3Result || !s3Result.distortion) {
-		return {
-			action: 'AVOID',
-			reason: 'No structural edge to execute',
-		};
-	}
-	if (s3Result.spike) {
-		const yes = s3Result.spike.yes;
-		if (isExtremePrice(yes)) {
-			return {
-				action: 'AVOID',
-				reason: `Extreme entry price at ${pct(yes)} — execution veto`,
-			};
-		}
-		const direction = 'BUY NO';
-		const noEntry = 1 - yes;
-		const tpNo = clamp(noEntry * 1.8, noEntry + 0.03, 0.85);
-		const slNo = clamp(noEntry * 0.55, 0.02, noEntry - 0.02);
-		if (!(tpNo > noEntry && slNo < noEntry)) {
-			return {
-				action: 'AVOID',
-				reason: 'Execution sanity check failed',
-			};
-		}
-		return {
-			action: 'TRADE',
-			direction,
-			entry: money(noEntry),
-			tp: money(tpNo),
-			sl: money(slNo),
-			entryRaw: noEntry,
-			tpRaw: tpNo,
-			slRaw: slNo,
-			note: s3Result.spike.question,
-			source: 'Stage 3 — DDS structural distortion',
-		};
-	}
-	if (s3Result.kink) {
-		const { from, to, step, mean } = s3Result.kink;
-		let direction = 'BUY YES';
-		if (step > mean) direction = 'BUY NO';
-		const entry = direction === 'BUY YES' ? from.yes : to.yes;
-		if (isExtremePrice(entry)) {
-			return {
-				action: 'AVOID',
-				reason: `Extreme entry price at ${pct(entry)} — execution veto`,
-			};
-		}
-		const tp = clamp(entry * 1.7, entry + 0.03, 0.85);
-		const sl = clamp(entry * 0.55, 0.02, entry - 0.02);
-		if (!(tp > entry && sl < entry)) {
-			return {
-				action: 'AVOID',
-				reason: 'Execution sanity check failed',
-			};
-		}
-		return {
-			action: 'TRADE',
-			direction,
-			entry: money(entry),
-			tp: money(tp),
-			sl: money(sl),
-			entryRaw: entry,
-			tpRaw: tp,
-			slRaw: sl,
-			note: direction === 'BUY YES' ? from.question : to.question,
-			source: 'Stage 3 — Threshold ladder kink/gap/outlier',
-		};
-	}
-	return {
-		action: 'AVOID',
-		reason: 'No structural edge to execute',
-	};
+    if (!s3Result || !s3Result.distortion) {
+        return {
+            action: 'AVOID',
+            reason: 'No structural edge to execute',
+        };
+    }
+    if (s3Result.spike) {
+        const yes = s3Result.spike.yes;
+        if (isExtremePrice(yes)) {
+            return {
+                action: 'AVOID',
+                reason: `Extreme entry price at ${pct(yes)} — execution veto`,
+            };
+        }
+        const direction = 'BUY NO';
+        const noEntry = 1 - yes;
+        const tpNo = clamp(noEntry * 1.8, noEntry + 0.03, 0.85);
+        const slNo = clamp(noEntry * 0.55, 0.02, noEntry - 0.02);
+        if (!(tpNo > noEntry && slNo < noEntry)) {
+            return {
+                action: 'AVOID',
+                reason: 'Execution sanity check failed',
+            };
+        }
+        return {
+            action: 'TRADE',
+            direction,
+            entry: money(noEntry),
+            tp: money(tpNo),
+            sl: money(slNo),
+            entryRaw: noEntry,
+            tpRaw: tpNo,
+            slRaw: slNo,
+            note: s3Result.spike.question,
+            source: 'Stage 3 — DDS structural distortion',
+        };
+    }
+    if (s3Result.kink) {
+        const { from, to, step, mean } = s3Result.kink;
+        let direction = 'BUY YES';
+        if (step > mean) direction = 'BUY NO';
+        const entry = direction === 'BUY YES' ? from.yes : to.yes;
+        if (isExtremePrice(entry)) {
+            return {
+                action: 'AVOID',
+                reason: `Extreme entry price at ${pct(entry)} — execution veto`,
+            };
+        }
+        const tp = clamp(entry * 1.7, entry + 0.03, 0.85);
+        const sl = clamp(entry * 0.55, 0.02, entry - 0.02);
+        if (!(tp > entry && sl < entry)) {
+            return {
+                action: 'AVOID',
+                reason: 'Execution sanity check failed',
+            };
+        }
+        return {
+            action: 'TRADE',
+            direction,
+            entry: money(entry),
+            tp: money(tp),
+            sl: money(sl),
+            entryRaw: entry,
+            tpRaw: tp,
+            slRaw: sl,
+            note: direction === 'BUY YES' ? from.question : to.question,
+            source: 'Stage 3 — Threshold ladder kink/gap/outlier',
+        };
+    }
+    return {
+        action: 'AVOID',
+        reason: 'No structural edge to execute',
+    };
 }
 
 // =====================
 // Engine
 // =====================
 function runEngine(event: any): any {
-	const title = getEventTitle(event);
-	const rawMarkets = Array.isArray(event.markets) ? event.markets : [];
-	const s1 = stage1(rawMarkets);
-	if (!s1.pass) {
-		return {
-			title,
-			action: 'AVOID',
-			stopStage: 1,
-			trail: [
-				{ stage: 'S1', label: 'Market filter', pass: false, reason: s1.reason },
-			],
-		};
-	}
-	const s2 = stage2(s1.markets, title);
-	const s3 = stage3(s2);
-	if (s3.veto) {
-		return {
-			title,
-			action: 'AVOID',
-			stopStage: 3,
-			s3,
-			trail: [
-				{ stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
-				{ stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
-				{ stage: 'S3', label: 'Structural edge', pass: false, reason: s3.reason },
-			],
-		};
-	}
-	if (s3.distortion) {
-		const s5 = stage5(s3);
-		const isTrade = s5.action === 'TRADE';
-		return {
-			title,
-			action: isTrade ? 'TRADE' : 'AVOID',
-			stopStage: 5,
-			s3,
-			execution: s5,
-			trail: [
-				{ stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
-				{ stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
-				{ stage: 'S3', label: 'Structural edge', pass: true, reason: s3.reason },
-				{
-					stage: 'S5',
-					label: 'Execution',
-					pass: isTrade,
-					reason: isTrade
-						? `${s5.direction} | Entry ${s5.entry} | TP ${s5.tp} | SL ${s5.sl}`
-						: s5.reason,
-				},
-			],
-		};
-	}
-	const s4 = stage4(s2);
-	if (s4.watchlist) {
-		return {
-			title,
-			action: 'WATCHLIST',
-			stopStage: 4,
-			s3,
-			trail: [
-				{ stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
-				{ stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
-				{ stage: 'S3', label: 'Structural edge', pass: false, reason: s3.reason },
-				{ stage: 'S4', label: 'Secondary filter', pass: null, reason: s4.reason },
-			],
-		};
-	}
-	return {
-		title,
-		action: 'AVOID',
-		stopStage: 4,
-		s3,
-		trail: [
-			{ stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
-			{ stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
-			{ stage: 'S3', label: 'Structural edge', pass: false, reason: s3.reason },
-			{ stage: 'S4', label: 'Secondary filter', pass: false, reason: s4.reason },
-		],
-	};
+    const title = getEventTitle(event);
+    const rawMarkets = Array.isArray(event.markets) ? event.markets : [];
+    const s1 = stage1(rawMarkets);
+    if (!s1.pass) {
+        return {
+            title,
+            action: 'AVOID',
+            stopStage: 1,
+            trail: [
+                { stage: 'S1', label: 'Market filter', pass: false, reason: s1.reason },
+            ],
+        };
+    }
+    const s2 = stage2(s1.markets, title);
+    const s3 = stage3(s2);
+    if (s3.veto) {
+        return {
+            title,
+            action: 'AVOID',
+            stopStage: 3,
+            s3,
+            trail: [
+                { stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
+                { stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
+                { stage: 'S3', label: 'Structural edge', pass: false, reason: s3.reason },
+            ],
+        };
+    }
+    if (s3.distortion) {
+        const s5 = stage5(s3);
+        const isTrade = s5.action === 'TRADE';
+        return {
+            title,
+            action: isTrade ? 'TRADE' : 'AVOID',
+            stopStage: 5,
+            s3,
+            execution: s5,
+            trail: [
+                { stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
+                { stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
+                { stage: 'S3', label: 'Structural edge', pass: true, reason: s3.reason },
+                {
+                    stage: 'S5',
+                    label: 'Execution',
+                    pass: isTrade,
+                    reason: isTrade
+                        ? `${s5.direction} | Entry ${s5.entry} | TP ${s5.tp} | SL ${s5.sl}`
+                        : s5.reason,
+                },
+            ],
+        };
+    }
+    const s4 = stage4(s2);
+    if (s4.watchlist) {
+        return {
+            title,
+            action: 'WATCHLIST',
+            stopStage: 4,
+            s3,
+            trail: [
+                { stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
+                { stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
+                { stage: 'S3', label: 'Structural edge', pass: false, reason: s3.reason },
+                { stage: 'S4', label: 'Secondary filter', pass: null, reason: s4.reason },
+            ],
+        };
+    }
+    return {
+        title,
+        action: 'AVOID',
+        stopStage: 4,
+        s3,
+        trail: [
+            { stage: 'S1', label: 'Market filter', pass: true, reason: s1.reason },
+            { stage: 'S2', label: 'Market structure', pass: true, reason: s2.label },
+            { stage: 'S3', label: 'Structural edge', pass: false, reason: s3.reason },
+            { stage: 'S4', label: 'Secondary filter', pass: false, reason: s4.reason },
+        ],
+    };
 }
 
 // =====================
 // Printing
 // =====================
 function printProbabilityTable(s3: any): void {
-	if (!s3 || !Array.isArray(s3.rows) || s3.rows.length === 0) return;
-	console.log('         \x1b[90mProbability table:\x1b[0m');
-	for (const row of s3.rows) {
-		const isSpike = s3.spike && row.question === s3.spike.question;
-		const bar = '█'.repeat(Math.round(row.yes * 20));
-		const flag = isSpike ? ' \x1b[33m← DDS spike\x1b[0m' : '';
-		console.log(
-			`           ${shortQuestion(row.question)} ${pct(row.yes).padStart(4)}  ${bar}${flag}`
-		);
-	}
+    if (!s3 || !Array.isArray(s3.rows) || s3.rows.length === 0) return;
+    console.log('         \x1b[90mProbability table:\x1b[0m');
+    for (const row of s3.rows) {
+        const isSpike = s3.spike && row.question === s3.spike.question;
+        const bar = '█'.repeat(Math.round(row.yes * 20));
+        const flag = isSpike ? ' \x1b[33m← DDS spike\x1b[0m' : '';
+        console.log(
+            `           ${shortQuestion(row.question)} ${pct(row.yes).padStart(4)}  ${bar}${flag}`
+        );
+    }
 }
 function printResult(result: any): void {
-	function formatActionLabel(action: string): string {
-		if (action === 'TRADE') return '\x1b[32m[⚡ TRADE]\x1b[0m';
-		if (action === 'WATCHLIST') return '\x1b[33m[ WATCH ]\x1b[0m';
-		return '\x1b[90m[ AVOID ]\x1b[0m';
-	}
-	console.log(`${formatActionLabel(result.action)} ${result.title}`);
-	for (const step of result.trail) {
-		const tick =
-			step.pass === true
-				? '\x1b[32m✓\x1b[0m'
-				: step.pass === false
-				? '\x1b[31m✗\x1b[0m'
-				: '\x1b[90m—\x1b[0m';
-		console.log(`         ${tick} ${step.stage} ${step.label}: ${step.reason}`);
-	}
-	if (result.s3) {
-		printProbabilityTable(result.s3);
-	}
-	console.log('');
+    function formatActionLabel(action: string): string {
+        if (action === 'TRADE') return '\x1b[32m[⚡ TRADE]\x1b[0m';
+        if (action === 'WATCHLIST') return '\x1b[33m[ WATCH ]\x1b[0m';
+        return '\x1b[90m[ AVOID ]\x1b[0m';
+    }
+    console.log(`${formatActionLabel(result.action)} ${result.title}`);
+    for (const step of result.trail) {
+        const tick =
+            step.pass === true
+                ? '\x1b[32m✓\x1b[0m'
+                : step.pass === false
+                ? '\x1b[31m✗\x1b[0m'
+                : '\x1b[90m—\x1b[0m';
+        console.log(`         ${tick} ${step.stage} ${step.label}: ${step.reason}`);
+    }
+    if (result.s3) {
+        printProbabilityTable(result.s3);
+    }
+    console.log('');
 }
 
 // =====================
 // Fetchers for each exchange (Polymarket implemented, others placeholder)
 // =====================
 async function fetchPolymarketEvents(): Promise<any[]> {
-	const url = `${POLYMARKET_API}/events?active=true&closed=false&limit=${EVENT_LIMIT}&order=volume&ascending=false`;
-	const res = await fetch(url);
-	if (!res.ok) throw new Error(`Gamma API returned ${res.status}`);
-	const data = await res.json();
-	return Array.isArray(data) ? data : [];
+    const url = `${POLYMARKET_API}/events?active=true&closed=false&limit=${EVENT_LIMIT}&order=volume&ascending=false`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Gamma API returned ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
 }
 // const fetchKalshiEvents(): Promise<any[]> {
-// 	// Fetch Kalshi markets and wrap as events
-// 	const markets = await fetchKalshiMarkets();
-// 	// Group by ticker root (event) if possible, otherwise treat each market as an event
-// 	const eventsMap: Record<string, any> = {};
-// 	for (const m of markets) {
-// 		// Use ticker root as event id (e.g., "INFLATION23_YES" -> "INFLATION23")
-// 		const eventId = m.ticker.split('_')[0];
-// 		if (!eventsMap[eventId]) {
-// 			eventsMap[eventId] = {
-// 				id: eventId,
-// 				title: m.title,
-// 				markets: [],
-// 				tags: [],
-// 			};
-// 		}
-// 		// Avoid duplicate id/title by spreading first, then explicitly setting
-// 		eventsMap[eventId].markets.push({
-// 			...m,
-// 			question: m.title,
-// 			outcomes: [], // Kalshi API v2 does not provide outcome prices directly
-// 			volume: 0,
-// 			tags: [],
-// 		});
-// 	}
-// 	return Object.values(eventsMap);
+//  // Fetch Kalshi markets and wrap as events
+//  const markets = await fetchKalshiMarkets();
+//  // Group by ticker root (event) if possible, otherwise treat each market as an event
+//  const eventsMap: Record<string, any> = {};
+//  for (const m of markets) {
+//      // Use ticker root as event id (e.g., "INFLATION23_YES" -> "INFLATION23")
+//      const eventId = m.ticker.split('_')[0];
+//      if (!eventsMap[eventId]) {
+//          eventsMap[eventId] = {
+//              id: eventId,
+//              title: m.title,
+//              markets: [],
+//              tags: [],
+//          };
+//      }
+//      // Avoid duplicate id/title by spreading first, then explicitly setting
+//      eventsMap[eventId].markets.push({
+//          ...m,
+//          question: m.title,
+//          outcomes: [], // Kalshi API v2 does not provide outcome prices directly
+//          volume: 0,
+//          tags: [],
+//      });
+//  }
+//  return Object.values(eventsMap);
 // }
 // fetchKalshiEvents is now imported directly from the connector, matching the modular pattern.
 async function fetchManifoldEvents(): Promise<any[]> {
-	const url = `${MANIFOLD_API}/v0/markets`;
-	const res = await fetch(url);
-	if (!res.ok) throw new Error(`Manifold API returned ${res.status}`);
-	const data = await res.json();
-	if (!Array.isArray(data)) return [];
+    const url = `${MANIFOLD_API}/v0/markets`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Manifold API returned ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
 
 
-		// Filter for only active/open markets: not resolved and (no closeTime or closeTime in the future)
-		const now = Date.now();
-		const openMarkets = data.filter((m) =>
-			m.isResolved === false &&
-			(typeof m.closeTime !== 'number' || m.closeTime > now)
-		);
+        // Filter for only active/open markets: not resolved and (no closeTime or closeTime in the future)
+        const now = Date.now();
+        const openMarkets = data.filter((m) =>
+            m.isResolved === false &&
+            (typeof m.closeTime !== 'number' || m.closeTime > now)
+        );
 
-		// Normalize outcomePrices for engine compatibility
-		for (const m of openMarkets) {
-			// Attach endDate for engine compatibility (resolution date)
-			if (typeof m.closeTime === 'number') {
-				m.endDate = m.closeTime;
-			}
-			// Binary market
-			let prob = undefined;
-			if (typeof m.probability === 'number') {
-				prob = m.probability;
-			} else if (typeof m.probabilityInt === 'number') {
-				prob = m.probabilityInt / 1000;
-			}
-			if (typeof prob === 'number') {
-				m.outcomePrices = JSON.stringify([prob, 1 - prob]);
-			} else if (Array.isArray(m.answers) && m.answers.length > 0) {
-				// Multiple-choice market
-				const prices = m.answers.map((a: any) => {
-					if (typeof a.probability === 'number') return a.probability;
-					if (typeof a.probabilityInt === 'number') return a.probabilityInt / 1000;
-					return 0;
-				});
-				m.outcomePrices = JSON.stringify(prices);
-			} else {
-				m.outcomePrices = JSON.stringify([]);
-			}
-		}
+        // Normalize outcomePrices for engine compatibility
+        for (const m of openMarkets) {
+            // Attach endDate for engine compatibility (resolution date)
+            if (typeof m.closeTime === 'number') {
+                m.endDate = m.closeTime;
+            }
+            // Binary market
+            let prob = undefined;
+            if (typeof m.probability === 'number') {
+                prob = m.probability;
+            } else if (typeof m.probabilityInt === 'number') {
+                prob = m.probabilityInt / 1000;
+            }
+            if (typeof prob === 'number') {
+                m.outcomePrices = JSON.stringify([prob, 1 - prob]);
+            } else if (Array.isArray(m.answers) && m.answers.length > 0) {
+                // Multiple-choice market
+                const prices = m.answers.map((a: any) => {
+                    if (typeof a.probability === 'number') return a.probability;
+                    if (typeof a.probabilityInt === 'number') return a.probabilityInt / 1000;
+                    return 0;
+                });
+                m.outcomePrices = JSON.stringify(prices);
+            } else {
+                m.outcomePrices = JSON.stringify([]);
+            }
+        }
 
-		// Group open markets by groupId if present, else by normalized question stem
-		const eventsMap: Record<string, any> = {};
-		for (const m of openMarkets) {
-				const groupId = m.groupId || (m.question ? m.question.replace(/\s+/g, ' ').toLowerCase().replace(/[^a-z0-9 ]/g, '').slice(0, 48) : 'ungrouped');
-				if (!eventsMap[groupId]) {
-						eventsMap[groupId] = {
-								id: groupId,
-								title: m.groupName || m.question || 'Untitled',
-								markets: [],
-								tags: m.tags || [],
-						};
-				}
-				eventsMap[groupId].markets.push(m);
-		}
-		return Object.values(eventsMap);
+        // Group open markets by groupId if present, else by normalized question stem
+        const eventsMap: Record<string, any> = {};
+        for (const m of openMarkets) {
+                const groupId = m.groupId || (m.question ? m.question.replace(/\s+/g, ' ').toLowerCase().replace(/[^a-z0-9 ]/g, '').slice(0, 48) : 'ungrouped');
+                if (!eventsMap[groupId]) {
+                        eventsMap[groupId] = {
+                                id: groupId,
+                                title: m.groupName || m.question || 'Untitled',
+                                markets: [],
+                                tags: m.tags || [],
+                        };
+                }
+                eventsMap[groupId].markets.push(m);
+        }
+        return Object.values(eventsMap);
 }
 async function fetchStocksEvents(): Promise<any[]> {
-	// TODO: Implement Stocks API fetch
-	console.log('Stocks fetch not implemented yet.');
-	return [];
+    // TODO: Implement Stocks API fetch
+    console.log('Stocks fetch not implemented yet.');
+    return [];
 }
 async function fetchCurrenciesEvents(): Promise<any[]> {
 	// TODO: Implement Currencies API fetch
@@ -614,10 +612,10 @@ async function fetchBondsEvents(): Promise<any[]> {
 // =====================
 async function main() {
 	console.log('');
-	console.log(line('═'));
+	console.log(line('\u2550'));
 	console.log('  UNIVERSAL STRUCTURAL SCANNER');
 	console.log(`  Exchange: ${exchange}`);
-	console.log(line('═'));
+	console.log(line('\u2550'));
 	console.log('');
 
 	let events: any[] = [];
@@ -804,7 +802,7 @@ function inferTagsFromTitle(title: string): string[] {
 				console.log(`  Market: ${sig.marketTitle}`);
 				console.log(`    Outcome: ${sig.outcome}`);
 				if (sig.priceChangeAbs !== undefined) {
-					console.log(`    Price: ${(sig.price * 100).toFixed(1)}% | Δ ${(sig.priceChangeAbs * 100).toFixed(1)}% | Vol: $${sig.volume}`);
+					console.log(`    Price: ${(sig.price * 100).toFixed(1)}% | \u0394 ${(sig.priceChangeAbs * 100).toFixed(1)}% | Vol: $${sig.volume}`);
 				}
 				   // Removed orderbook gap debug output
 				console.log(`    Reason: ${sig.reason}`);
@@ -857,12 +855,14 @@ function inferTagsFromTitle(title: string): string[] {
 			console.log('\x1b[90mNo sentiment imbalance signals found.\x1b[0m\n');
 		}
 	}
-	console.log(line('═'));
+	console.log(line('\u2550'));
 	console.log(
-		`  SCAN COMPLETE — ${trades.length} TRADE · ${watchlist.length} WATCHLIST · ${avoids.length} AVOID across ${results.length} markets`
+		`  SCAN COMPLETE \u2014 ${trades.length} TRADE \u00b7 ${watchlist.length} WATCHLIST \u00b7 ${avoids.length} AVOID across ${results.length} markets`
 	);
-	console.log(line('═'));
+	console.log(line('\u2550'));
 	console.log('');
+
+	// Send SMS with trade count (Twilio integration test disabled)
 }
 
 main().catch((err) => {

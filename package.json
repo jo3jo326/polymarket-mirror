@@ -5,26 +5,28 @@
   "description": "",
   "main": "index.js",
   "devDependencies": {
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.0",
     "node-fetch": "^3.3.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2"
   },
   "scripts": {
     "build": "tsc",
-    "start:polymarket": "npx ts-node src/app/scanner.ts --exchange=polymarket",
-    "start:kalshi": "npx ts-node src/app/scanner.ts --exchange=kalshi",
-    "start:manifold": "npx ts-node src/app/scanner.ts --exchange=manifold",
-    "start:stocks": "npx ts-node src/app/scanner.ts --exchange=stocks",
-    "start:currencies": "npx ts-node src/app/scanner.ts --exchange=currencies",
-    "start:bonds": "npx ts-node src/app/scanner.ts --exchange=bonds",
-    "start": "node dist/app/scanner.js",
+    "start:polymarket": "npx ts-node src/app/scanner_copy.ts --exchange=polymarket",
+    "start:kalshi": "npx ts-node src/app/scanner_copy.ts --exchange=kalshi",
+    "start:manifold": "npx ts-node src/app/scanner_copy.ts --exchange=manifold",
+    "start:stocks": "npx ts-node src/app/scanner_copy.ts --exchange=stocks",
+    "start:currencies": "npx ts-node src/app/scanner_copy.ts --exchange=currencies",
+    "start:bonds": "npx ts-node src/app/scanner_copy.ts --exchange=bonds",
+    "start": "node dist/app/scanner_copy.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^17.4.1"
+    "dotenv": "^17.4.1",
+    "resend": "^6.11.0",
+    "twilio": "^5.13.1"
   }
 }
