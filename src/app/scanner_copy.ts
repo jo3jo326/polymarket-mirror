@@ -41,6 +41,8 @@ import { fetchEvents as fetchKalshiEvents } from '../connectors/kalshi/fetchEven
 // DEX connectors
 import { fetchQuickSwapEvents } from '../connectors/quickswap/fetchEvents';
 import { fetchTraderJoeEvents } from '../connectors/traderjoe/fetchEvents';
+// Commodities connector
+import { fetchCommoditiesEvents } from '../connectors/commodities/fetchEvents';
 
 // =====================
 // Argument Parsing
@@ -628,6 +630,8 @@ async function main() {
 		   events = await fetchQuickSwapEvents();
 	   } else if (exchange === 'traderjoe') {
 		   events = await fetchTraderJoeEvents();
+	   } else if (exchange === 'commodities') {
+		   events = await fetchCommoditiesEvents();
 	   } else if (exchange === 'stocks') {
 		   events = await fetchStocksEvents();
 	   } else if (exchange === 'currencies') {
@@ -660,6 +664,11 @@ async function main() {
 		   allExchangesMarkets['traderjoe'] = (await fetchTraderJoeEvents()).flatMap(e => Array.isArray(e.markets) ? e.markets : []);
 	   } catch (e) {
 		   allExchangesMarkets['traderjoe'] = [];
+	   }
+	   try {
+		   allExchangesMarkets['commodities'] = (await fetchCommoditiesEvents()).flatMap(e => Array.isArray(e.markets) ? e.markets : []);
+	   } catch (e) {
+		   allExchangesMarkets['commodities'] = [];
 	   }
 
 	const crossExchangeArbSignals = analyzeCrossExchangeArb(allExchangesMarkets, { minDiff: 0.05 });
