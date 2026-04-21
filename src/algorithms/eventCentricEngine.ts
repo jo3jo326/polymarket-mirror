@@ -67,8 +67,10 @@ export function analyzeIntraExchangeOpportunities(
   const results: IntraExchangeOpportunity[] = [];
   const contradictionThreshold = options.contradictionThreshold ?? 0.2;
   for (const cluster of clusters) {
-    // Example: look for wide price spread or contradictory sentiment
-    const yesPrices = cluster.markets.map(m => m.outcomes[0]?.price).filter(p => typeof p === 'number');
+    // Defensive: skip markets with missing or undefined outcomes
+    const validMarkets = cluster.markets.filter(m => Array.isArray(m.outcomes) && m.outcomes.length > 0 && typeof m.outcomes[0]?.price === 'number');
+    if (validMarkets.length < 2) continue;
+    const yesPrices = validMarkets.map(m => m.outcomes[0].price);
     const min = Math.min(...yesPrices);
     const max = Math.max(...yesPrices);
     if (max - min > contradictionThreshold) {
@@ -77,7 +79,7 @@ export function analyzeIntraExchangeOpportunities(
         exchange: cluster.exchange,
         event: cluster.event.name,
         details: `Wide price spread (${(min*100).toFixed(1)}% - ${(max*100).toFixed(1)}%) among related markets`,
-        markets: cluster.markets
+        markets: validMarkets
       });
     }
   }

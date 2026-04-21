@@ -124,12 +124,15 @@ function stage1(markets: any[]): any {
 	if (!first) {
 		return { pass: false, reason: 'No markets found in event' };
 	}
-	// Support Manifold: treat as active if isResolved === false and (closeTime is undefined or in the future)
 	const now = Date.now();
 	const activeMarkets = markets.filter((m) => {
 		// Manifold logic
 		if (typeof m.isResolved === 'boolean') {
 			return m.isResolved === false && (typeof m.closeTime !== 'number' || m.closeTime > now);
+		}
+		// DEX/Uniswap logic: treat as open if tagged as 'dex' or 'uniswap'
+		if ((m.tags && (m.tags.includes('dex') || m.tags.includes('uniswap'))) || m.source === 'uniswap') {
+			return true;
 		}
 		// Polymarket/other logic
 		return m.active === true && m.closed === false;
@@ -669,6 +672,9 @@ async function main() {
 		events = await fetchKalshiEvents();
 	} else if (exchange === 'manifold') {
 		events = await fetchManifoldEvents();
+	} else if (exchange === 'uniswap') {
+		const { fetchUniswapEvents } = await import('../connectors/uniswap/fetchEvents');
+		events = await fetchUniswapEvents();
 	} else if (exchange === 'stocks') {
 		events = await fetchStocksEvents();
 	} else if (exchange === 'currencies') {
@@ -681,10 +687,17 @@ async function main() {
 	}
 
 	// --- Cross-Exchange Arbitrage Integration ---
+
 	// Fetch and normalize markets from all supported exchanges
 	const allExchangesMarkets: Record<string, any[]> = {};
 	allExchangesMarkets['polymarket'] = (await fetchPolymarketEvents()).flatMap(e => Array.isArray(e.markets) ? e.markets : []);
 	allExchangesMarkets['manifold'] = (await fetchManifoldEvents()).flatMap(e => Array.isArray(e.markets) ? e.markets : []);
+	try {
+		const { fetchUniswapEvents } = await import('../connectors/uniswap/fetchEvents');
+		allExchangesMarkets['uniswap'] = (await fetchUniswapEvents()).flatMap(e => Array.isArray(e.markets) ? e.markets : []);
+	} catch (e) {
+		allExchangesMarkets['uniswap'] = [];
+	}
 	// Add more exchanges here as needed
 
 	const crossExchangeArbSignals = analyzeCrossExchangeArb(allExchangesMarkets, { minDiff: 0.05 });
